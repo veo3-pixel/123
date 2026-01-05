@@ -1,0 +1,7 @@
+{
+  "name": "Subhan Khan Shinwari Dera POS",
+  "description": "Professional Restaurant ERP with POS, Kitchen Display, Inventory, and Cloud Sync. Optimized for Android APK.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
