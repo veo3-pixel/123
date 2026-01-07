@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Order, Expense, Purchase, OrderStatus, User, UserRole } from '../types';
-import { Calendar, DollarSign, TrendingDown, TrendingUp, ShoppingCart, Truck, Download, Lock } from 'lucide-react';
+import { Calendar, DollarSign, TrendingDown, TrendingUp, ShoppingCart, Truck, Download, Lock, FileText } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts';
 
 interface ReportsViewProps {
@@ -63,28 +63,37 @@ const ReportsView: React.FC<ReportsViewProps> = ({ currentUser, orders, expenses
       return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([date, vals]) => ({ date, ...vals }));
   };
 
-  const categoryExpenseData = () => {
-      const map = new Map<string, number>();
-      filteredExpenses.forEach(e => map.set(e.category, (map.get(e.category) || 0) + e.amount));
-      return Array.from(map.entries()).map(([name, value]) => ({ name, value }));
-  };
-
   const handleExportCSV = () => {
-      let csvContent = "data:text/csv;charset=utf-8,";
+      let csvContent = "";
+      
       if (activeTab === 'SALES') {
-          csvContent += "Order ID,Date,Type,Total\n";
-          filteredOrders.forEach(o => { csvContent += `${o.orderNumber},${o.timestamp.toISOString()},${o.type},${o.total}\n`; });
+          csvContent = "Order ID,Date,Type,Customer,Total\n";
+          filteredOrders.forEach(o => { 
+              csvContent += `${o.orderNumber},"${o.timestamp.toLocaleString()}",${o.type},"${o.customerName || 'Walk-in'}",${o.total}\n`; 
+          });
       } else if (activeTab === 'EXPENSE' && isAdmin) {
-          csvContent += "Date,Category,Description,Amount\n";
-          filteredExpenses.forEach(e => { csvContent += `${e.date},${e.category},${e.description.replace(/,/g, ' ')},${e.amount}\n`; });
+          csvContent = "Date,Category,Description,Amount\n";
+          filteredExpenses.forEach(e => { 
+              csvContent += `"${new Date(e.date).toLocaleDateString()}",${e.category},"${e.description.replace(/"/g, '""')}",${e.amount}\n`; 
+          });
+      } else if (activeTab === 'PURCHASE' && isAdmin) {
+          csvContent = "Date,Supplier,Total Cost\n";
+          filteredPurchases.forEach(p => {
+              csvContent += `"${new Date(p.date).toLocaleDateString()}","${p.supplier}",${p.totalCost}\n`;
+          });
       } else if (activeTab === 'PNL' && isAdmin) {
-          csvContent += "Date,Sales,Expenses,Purchases\n";
-          getDailyData().forEach(row => { csvContent += `${row.date},${row.sales},${row.expenses},${row.purchases}\n`; });
+          csvContent = "Date,Sales,Expenses,Purchases,Net Profit\n";
+          getDailyData().forEach(row => { 
+              const profit = row.sales - row.expenses - row.purchases;
+              csvContent += `${row.date},${row.sales},${row.expenses},${row.purchases},${profit}\n`; 
+          });
       }
-      const encodedUri = encodeURI(csvContent);
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `${activeTab}_Report.csv`);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${activeTab}_Report_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -105,13 +114,13 @@ const ReportsView: React.FC<ReportsViewProps> = ({ currentUser, orders, expenses
                         </button>
                     ))}
                 </div>
-                <button onClick={handleExportCSV} className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-green-700 shadow-sm">
+                <button onClick={handleExportCSV} className="bg-green-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-green-700 shadow-sm transition-all active:scale-95">
                     <Download size={16}/> Export CSV
                 </button>
             </div>
         </div>
 
-        <div className="flex gap-2 border-b mb-6 overflow-x-auto">
+        <div className="flex gap-2 border-b mb-6 overflow-x-auto no-scrollbar">
             {[
                 { id: 'PNL', label: 'Profit & Loss', icon: DollarSign, restricted: true },
                 { id: 'SALES', label: 'Sales Report', icon: TrendingUp, restricted: false },
@@ -131,9 +140,9 @@ const ReportsView: React.FC<ReportsViewProps> = ({ currentUser, orders, expenses
             ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
             {activeTab === 'PNL' && isAdmin && (
-                <div className="space-y-6">
+                <div className="space-y-6 animate-fade-in">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="bg-green-600 text-white p-6 rounded-2xl shadow-lg">
                             <p className="text-green-100 text-sm font-bold mb-1">Total Revenue</p>
@@ -147,23 +156,25 @@ const ReportsView: React.FC<ReportsViewProps> = ({ currentUser, orders, expenses
                             <p className="text-orange-100 text-sm font-bold mb-1">Purchases (COGS)</p>
                             <h3 className="text-3xl font-bold">Rs. {totalPurchases.toLocaleString()}</h3>
                         </div>
-                        <div className={`p-6 rounded-2xl shadow-lg text-white ${netProfit >= 0 ? 'bg-blue-600' : 'bg-gray-800'}`}>
+                        <div className={`p-6 rounded-2xl shadow-lg text-white transition-all ${netProfit >= 0 ? 'bg-blue-600' : 'bg-gray-800'}`}>
                             <p className="text-blue-100 text-sm font-bold mb-1">Net Profit</p>
                             <h3 className="text-3xl font-bold">Rs. {netProfit.toLocaleString()}</h3>
                         </div>
                     </div>
                     <div className="bg-white p-6 rounded-2xl shadow-sm border h-80">
-                        <h3 className="font-bold text-gray-700 mb-4">Financial Trend</h3>
+                        <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
+                           <FileText size={18} className="text-primary"/> Financial Trend
+                        </h3>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={getDailyData()}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                                 <XAxis dataKey="date" />
                                 <YAxis />
-                                <Tooltip />
+                                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
                                 <Legend />
-                                <Bar dataKey="sales" name="Sales" fill="#10b981" />
-                                <Bar dataKey="expenses" name="Expenses" fill="#ef4444" />
-                                <Bar dataKey="purchases" name="Purchases" fill="#f59e0b" />
+                                <Bar dataKey="sales" name="Sales" fill="#10b981" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="expenses" name="Expenses" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="purchases" name="Purchases" fill="#f59e0b" radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
@@ -171,16 +182,91 @@ const ReportsView: React.FC<ReportsViewProps> = ({ currentUser, orders, expenses
             )}
 
             {activeTab === 'SALES' && (
-                <div className="bg-white p-6 rounded-2xl shadow-sm border">
-                    <h3 className="font-bold text-gray-700 mb-4">Sales Breakdown</h3>
+                <div className="bg-white rounded-2xl shadow-sm border overflow-hidden animate-fade-in">
+                    <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                       <h3 className="font-bold text-gray-700">Recent Sales Summary</h3>
+                       <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">{filteredOrders.length} Orders</span>
+                    </div>
                     <table className="w-full text-left">
-                        <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-                            <tr><th className="p-3">Order #</th><th className="p-3">Date</th><th className="p-3 text-right">Amount</th></tr>
+                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-500 tracking-wider">
+                            <tr>
+                                <th className="p-4">Order #</th>
+                                <th className="p-4">Date & Time</th>
+                                <th className="p-4">Customer</th>
+                                <th className="p-4 text-right">Amount</th>
+                            </tr>
                         </thead>
                         <tbody className="text-sm divide-y">
-                            {filteredOrders.map(o => (
-                                <tr key={o.id}><td className="p-3 font-mono">#{o.orderNumber}</td><td className="p-3">{o.timestamp.toLocaleDateString()}</td><td className="p-3 text-right font-bold">Rs. {o.total}</td></tr>
-                            ))}
+                            {filteredOrders.length > 0 ? filteredOrders.map(o => (
+                                <tr key={o.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="p-4 font-mono font-bold text-primary">#{o.orderNumber}</td>
+                                    <td className="p-4 text-gray-600">{o.timestamp.toLocaleString()}</td>
+                                    <td className="p-4 text-gray-600">{o.customerName || 'Walk-in'}</td>
+                                    <td className="p-4 text-right font-bold text-gray-900">Rs. {o.total.toLocaleString()}</td>
+                                </tr>
+                            )) : (
+                                <tr><td colSpan={4} className="p-10 text-center text-gray-400 italic">No sales found in this range.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {activeTab === 'EXPENSE' && isAdmin && (
+                 <div className="bg-white rounded-2xl shadow-sm border overflow-hidden animate-fade-in">
+                    <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                       <h3 className="font-bold text-gray-700">Expense Journal</h3>
+                       <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total: Rs. {totalExpenses.toLocaleString()}</span>
+                    </div>
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-500 tracking-wider">
+                            <tr>
+                                <th className="p-4">Date</th>
+                                <th className="p-4">Category</th>
+                                <th className="p-4">Description</th>
+                                <th className="p-4 text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-sm divide-y">
+                            {filteredExpenses.length > 0 ? filteredExpenses.map(e => (
+                                <tr key={e.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="p-4 text-gray-600">{new Date(e.date).toLocaleDateString()}</td>
+                                    <td className="p-4"><span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-[10px] font-bold uppercase">{e.category}</span></td>
+                                    <td className="p-4 text-gray-600 truncate max-w-xs">{e.description}</td>
+                                    <td className="p-4 text-right font-bold text-red-600">Rs. {e.amount.toLocaleString()}</td>
+                                </tr>
+                            )) : (
+                                <tr><td colSpan={4} className="p-10 text-center text-gray-400 italic">No expenses recorded.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {activeTab === 'PURCHASE' && isAdmin && (
+                 <div className="bg-white rounded-2xl shadow-sm border overflow-hidden animate-fade-in">
+                    <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
+                       <h3 className="font-bold text-gray-700">Purchase Orders</h3>
+                       <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total: Rs. {totalPurchases.toLocaleString()}</span>
+                    </div>
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50 text-[10px] uppercase text-gray-500 tracking-wider">
+                            <tr>
+                                <th className="p-4">Date</th>
+                                <th className="p-4">Supplier</th>
+                                <th className="p-4 text-right">Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody className="text-sm divide-y">
+                            {filteredPurchases.length > 0 ? filteredPurchases.map(p => (
+                                <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                                    <td className="p-4 text-gray-600">{new Date(p.date).toLocaleDateString()}</td>
+                                    <td className="p-4 font-bold text-gray-700">{p.supplier}</td>
+                                    <td className="p-4 text-right font-bold text-orange-600">Rs. {p.totalCost.toLocaleString()}</td>
+                                </tr>
+                            )) : (
+                                <tr><td colSpan={3} className="p-10 text-center text-gray-400 italic">No purchases recorded.</td></tr>
+                            )}
                         </tbody>
                     </table>
                 </div>

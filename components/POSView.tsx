@@ -134,7 +134,7 @@ const POSView: React.FC<POSViewProps> = ({
     <div className="flex flex-col lg:flex-row h-full overflow-hidden bg-surface relative">
       {/* Selection Modal (Variations/Addons) */}
       {selectionItem && (
-          <div className="absolute inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="absolute inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white rounded-2xl w-full max-w-lg p-6 shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
                   <div className="flex justify-between items-start mb-4">
                       <div>
@@ -188,7 +188,8 @@ const POSView: React.FC<POSViewProps> = ({
 
       {/* Main UI */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        <div className="bg-white p-4 shadow-sm z-10 flex flex-col md:flex-row gap-4 justify-between items-center">
+        {/* Sticky Header */}
+        <div className="bg-white p-4 shadow-sm z-20 sticky top-0 flex flex-col md:flex-row gap-4 justify-between items-center">
             <div className="flex items-center gap-4">
               <div>
                 <h1 className="text-2xl font-bold text-gray-800">POS Terminal</h1>
@@ -205,35 +206,71 @@ const POSView: React.FC<POSViewProps> = ({
             </div>
         </div>
         
-        <div className="bg-white px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar border-b">
+        {/* Sticky Categories */}
+        <div className="bg-white px-4 pb-3 flex gap-2 overflow-x-auto no-scrollbar border-b sticky top-0 z-10 shadow-sm">
             {['All', ...categories].map(cat => (
-              <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-4 py-2 rounded-full whitespace-nowrap text-xs font-bold transition-all ${selectedCategory === cat ? 'bg-secondary text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+              <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-5 py-2.5 rounded-full whitespace-nowrap text-xs font-bold transition-all ${selectedCategory === cat ? 'bg-secondary text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                 {cat}
               </button>
             ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredItems.map(item => (
-              <div key={item.id} className="bg-white rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden group flex flex-col border-2 border-transparent hover:border-primary/20" onClick={() => initiateAddToCart(item)}>
-                <div className="h-32 sm:h-40 overflow-hidden relative shrink-0 bg-gray-100">
-                  <img src={item.image} alt={item.name} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                  {item.isBestseller && <div className="absolute top-2 left-2 bg-amber-400 text-white text-[8px] font-bold px-2 py-0.5 rounded shadow-sm">BESTSELLER</div>}
-                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-2">
-                    <p className="text-white font-bold text-xs">Rs. {item.price}</p>
+        {/* Scrollable Menu Items Grid */}
+        <div className="flex-1 overflow-y-auto p-4 overscroll-contain no-scrollbar sm:custom-scrollbar">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 pb-10">
+                {filteredItems.map(item => (
+                  <div 
+                    key={item.id} 
+                    className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all cursor-pointer overflow-hidden group flex flex-col border border-gray-100 hover:border-primary/40" 
+                    onClick={() => initiateAddToCart(item)}
+                  >
+                    {/* Item Image */}
+                    <div className="aspect-[4/3] w-full overflow-hidden relative shrink-0 bg-gray-100">
+                      <img 
+                        src={item.image} 
+                        alt={item.name} 
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                        loading="lazy"
+                      />
+                      {item.isBestseller && (
+                        <div className="absolute top-2 left-2 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-[9px] font-black px-2 py-0.5 rounded shadow-lg uppercase tracking-wider">
+                          Best Seller
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent p-3">
+                        <p className="text-white font-black text-sm">Rs. {item.price}</p>
+                      </div>
+                    </div>
+
+                    {/* Item Details */}
+                    <div className="p-3 flex flex-col flex-1 justify-between min-h-[80px]">
+                      <div>
+                        <h3 className="font-bold text-gray-800 text-sm leading-snug line-clamp-2 h-[2.8rem]">
+                          {item.name}
+                        </h3>
+                      </div>
+                      <div className="mt-2">
+                        <p className="font-urdu text-primary text-[11px] font-bold leading-none text-right truncate">
+                          {item.urduName}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="p-3 flex flex-col flex-1">
-                  <h3 className="font-bold text-gray-800 text-sm leading-tight">{item.name}</h3>
-                  <p className="font-urdu text-primary text-xs mt-1 text-right">{item.urduName}</p>
-                </div>
-              </div>
-            ))}
+                ))}
+
+                {filteredItems.length === 0 && (
+                   <div className="col-span-full py-20 flex flex-col items-center justify-center text-gray-400 opacity-50">
+                      <Utensils size={48} className="mb-4" />
+                      <p className="font-bold text-lg">No items found</p>
+                      <p className="font-urdu text-xl mt-2">کوئی چیز نہیں ملی</p>
+                   </div>
+                )}
+            </div>
         </div>
       </div>
 
       {/* Right Order Panel */}
-      <div className="w-full lg:w-[400px] bg-white border-l border-gray-200 flex flex-col h-[50vh] lg:h-full shadow-2xl relative z-40 rounded-t-3xl lg:rounded-none">
+      <div className="w-full lg:w-[400px] bg-white border-l border-gray-200 flex flex-col h-[50vh] lg:h-full shadow-2xl relative z-40 lg:rounded-none">
         <div className="flex p-2 bg-gray-50 border-b">
             {[
                 { type: OrderType.DINE_IN, icon: Utensils, label: 'Dine-In' },
@@ -251,7 +288,7 @@ const POSView: React.FC<POSViewProps> = ({
           <div className="flex justify-between items-center border-b pb-2">
             <h2 className="font-bold text-gray-800 text-sm flex items-center gap-2">
                {currentOrderId ? <PlayCircle size={16} className="text-blue-500 animate-pulse"/> : <ShoppingCart size={16} className="text-gray-400"/>}
-               {currentOrderId ? `Editing #${currentOrderId.slice(-4)}` : 'Cart'}
+               {currentOrderId ? `Editing #${currentOrderId.slice(-4)}` : 'Order Cart'}
             </h2>
             {cart.length > 0 && <button onClick={() => setCart([])} className="text-xs text-red-500 font-bold hover:underline">Clear</button>}
           </div>
@@ -294,7 +331,7 @@ const POSView: React.FC<POSViewProps> = ({
 
       {/* Payment Overlay */}
       {isCheckingOut && (
-          <div className="absolute inset-0 z-[100] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="absolute inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
               <div className="bg-white rounded-3xl w-full max-sm p-8 shadow-2xl animate-scale-up">
                   <h3 className="text-2xl font-bold text-center mb-6">Confirm Order</h3>
                   <div className="space-y-3 mb-8">
