@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import LoginView from './components/LoginView';
@@ -24,7 +23,9 @@ import {
   TransactionType, 
   Expense, 
   User, 
-  Customer 
+  Customer,
+  SystemSettings,
+  PrinterConfig
 } from './types';
 import { PersistenceService } from './services/persistenceService';
 import { RefreshCw, Check } from 'lucide-react';
@@ -44,6 +45,10 @@ const App: React.FC = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   
+  // Settings state lifted to App for sync
+  const [settings, setSettings] = useState<SystemSettings>(PersistenceService.getSettings());
+  const [printerConfig, setPrinterConfig] = useState<PrinterConfig>(PersistenceService.getPrinterConfig());
+  
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error' | 'offline'>('idle');
   
@@ -54,7 +59,6 @@ const App: React.FC = () => {
 
   useEffect(() => {
     loadLocalData();
-    const settings = PersistenceService.getSettings();
     if(settings.sync?.enabled && settings.sync.dropbox.accessToken && navigator.onLine) performSync('PULL');
   }, []);
 
@@ -68,10 +72,11 @@ const App: React.FC = () => {
     setExpenses(PersistenceService.getExpenses());
     setUsers(PersistenceService.getUsers());
     setCustomers(PersistenceService.getCustomers());
+    setSettings(PersistenceService.getSettings());
+    setPrinterConfig(PersistenceService.getPrinterConfig());
   };
 
   const performSync = async (mode: 'PUSH' | 'PULL') => {
-      const settings = PersistenceService.getSettings();
       const token = settings.sync?.dropbox.accessToken?.trim();
       if(!settings.sync?.enabled || !token || !navigator.onLine) return;
       setIsSyncing(true);
@@ -94,13 +99,6 @@ const App: React.FC = () => {
 
   const handleUpdateMenu = (items: MenuItem[]) => { setMenuItems(items); PersistenceService.saveMenu(items); };
   const handleAddCategory = (name: string) => { if (!categories.includes(name)) { const n = [...categories, name]; setCategories(n); PersistenceService.saveCategories(n); } };
-  const handleUpdateCategory = (oldName: string, newName: string) => {
-    const updatedCats = categories.map(c => c === oldName ? newName : c);
-    setCategories(updatedCats);
-    PersistenceService.saveCategories(updatedCats);
-    const updatedMenu = menuItems.map(m => m.category === oldName ? { ...m, category: newName } : m);
-    handleUpdateMenu(updatedMenu);
-  };
 
   const handlePlaceOrder = (items: CartItem[], total: number, type: OrderType, details: any, method: PaymentMethod): Order => {
     const seqNum = PersistenceService.getNextOrderNumber();
@@ -126,18 +124,33 @@ const App: React.FC = () => {
     return updatedOrder;
   };
 
+  const handleUpdateSettings = (newSettings: SystemSettings) => {
+    setSettings(newSettings);
+    PersistenceService.saveSettings(newSettings);
+  };
+
+  const handleUpdatePrinter = (newConfig: PrinterConfig) => {
+    setPrinterConfig(newConfig);
+    PersistenceService.savePrinterConfig(newConfig);
+  };
+
+  const handleUpdateUsers = (newUsers: User[]) => {
+    setUsers(newUsers);
+    PersistenceService.saveUsers(newUsers);
+  };
+
   if (!currentUser) return <LoginView users={users} onLogin={setCurrentUser} />;
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'pos': return <POSView menuItems={menuItems} cart={cart} setCart={setCart} currentOrderId={currentOrderId} customers={customers} categories={categories} onPlaceOrder={handlePlaceOrder} onUpdateOrder={handleUpdateOrder} onCancelEdit={() => setCurrentOrderId(null)} onPrintReceipt={(o) => { setPreviewOrder(o); setPrintMode('RECEIPT'); }} />;
+      case 'pos': return <POSView settings={settings} menuItems={menuItems} cart={cart} setCart={setCart} currentOrderId={currentOrderId} customers={customers} categories={categories} onPlaceOrder={handlePlaceOrder} onUpdateOrder={handleUpdateOrder} onCancelEdit={() => setCurrentOrderId(null)} onPrintReceipt={(o) => { setPreviewOrder(o); setPrintMode('RECEIPT'); }} />;
       case 'kitchen': return <KitchenView orders={orders} updateOrderStatus={(id, s) => { const u = orders.map(o => o.id === id ? {...o, status: s} : o); setOrders(u); PersistenceService.saveOrders(u); }} onEditOrder={(o) => { setCart(o.items); setCurrentOrderId(o.id); setActiveTab('pos'); }} onPrintKOT={(o) => { setPreviewOrder(o); setPrintMode('KOT'); }} />;
       case 'dashboard': return <DashboardView currentUser={currentUser} orders={orders} purchases={purchases} expenses={expenses} onPrintReceipt={(o) => { setPreviewOrder(o); setPrintMode('RECEIPT'); }} />;
-      case 'menu': return <MenuView currentUser={currentUser} menuItems={menuItems} inventory={inventory} categories={categories} onUpdateMenu={handleUpdateMenu} onAddCategory={handleAddCategory} onUpdateCategory={handleUpdateCategory} />;
+      case 'menu': return <MenuView currentUser={currentUser} menuItems={menuItems} inventory={inventory} categories={categories} onUpdateMenu={handleUpdateMenu} onAddCategory={handleAddCategory} onUpdateCategory={(old, newN) => {}} />;
       case 'inventory': return <InventoryView inventory={inventory} purchases={purchases} transactions={transactions} onAddInventoryItem={(i) => { const n = [...inventory, i]; setInventory(n); PersistenceService.saveInventory(n); }} onUpdateInventoryItem={(i) => { const n = inventory.map(x => x.id === i.id ? i : x); setInventory(n); PersistenceService.saveInventory(n); }} onPurchase={() => {}} onAdjustStock={() => {}} />;
       case 'expenses': return <ExpenseView currentUser={currentUser} expenses={expenses} onAddExpense={(e) => { const n = [e, ...expenses]; setExpenses(n); PersistenceService.saveExpenses(n); }} onDeleteExpense={(id) => { const n = expenses.filter(x => x.id !== id); setExpenses(n); PersistenceService.saveExpenses(n); }} />;
       case 'reports': return <ReportsView currentUser={currentUser} orders={orders} expenses={expenses} purchases={purchases} />;
-      case 'settings': return <SettingsView currentUser={currentUser} />;
+      case 'settings': return <SettingsView currentUser={currentUser} settings={settings} onUpdateSettings={handleUpdateSettings} printerConfig={printerConfig} onUpdatePrinter={handleUpdatePrinter} users={users} onUpdateUsers={handleUpdateUsers} onDataReset={loadLocalData} />;
       default: return <div className="p-10 text-center text-gray-400">Select a module from the sidebar.</div>;
     }
   };
@@ -150,7 +163,7 @@ const App: React.FC = () => {
               {isSyncing ? 'Syncing...' : 'System Ready'}
           </div>
       )}
-      {previewOrder && <ReceiptModal order={previewOrder} mode={printMode} onClose={() => setPreviewOrder(null)} />}
+      {previewOrder && <ReceiptModal order={previewOrder} settings={settings} printerConfig={printerConfig} mode={printMode} onClose={() => setPreviewOrder(null)} />}
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser} onLogout={() => setCurrentUser(null)} />
       <main className="flex-1 h-full overflow-hidden relative">{renderContent()}</main>
     </div>
